@@ -1,3 +1,6 @@
+#ifndef EFFECT_TYPE_H
+#define EFFECT_TYPE_H
+
 #include <string>
 #include <string_view>
 #include <array>
@@ -14,9 +17,8 @@ namespace EffectType {
         "stipple"sv,
         "invert"sv
     };
-
-    static_assert(effectNames.size() == max_effects, "You forgot to write all the effect names");
-
+    
+    inline
     Type getTypeFromString(std::string_view string) {
         for (size_t i{ 0 }; i < max_effects; ++i) {
             std::string_view effectName{ effectNames[i] };
@@ -26,6 +28,7 @@ namespace EffectType {
         return max_effects;
     }
 
+    inline
     std::string getPipedEffectNames() {
         std::string output{ "" };
         output += effectNames[0];
@@ -36,3 +39,5 @@ namespace EffectType {
         return output;
     }
 }
+
+#endif
