@@ -3,6 +3,7 @@
 #include <string_view>
 #include <array>
 #include "../include/imagegpu.cuh"
+#include "../include/sort.cuh"
 
 namespace Effect {
     namespace {
@@ -21,7 +22,7 @@ namespace Effect {
             image.setPixel(indices, Pixel<3, byte>{ pixel });
         }
 
-                __global__
+        __global__
         void KERNALStippleImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
             if (indices.first == (size_t)-1)
@@ -103,7 +104,7 @@ namespace Effect {
         }
         
         ImageCPU doSimpleImageEffect(EffectType::Type type, const ImageCPU& originalImage) {
-            ImageGPU<3, byte> gpuImage{ originalImage };
+            ImageGPU<3, byte> gpuImage{ ImageGPU<3, byte>::copyFromCPU(originalImage) };
 
             constexpr int BLOCK_WIDTH{ 16 };
             dim3 blockDim = dim3(BLOCK_WIDTH, BLOCK_WIDTH);
@@ -120,6 +121,7 @@ namespace Effect {
     }
 
     ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage) {
+        return Sort::sortImage(originalImage);
         return doSimpleImageEffect(type, originalImage);
     }
 }

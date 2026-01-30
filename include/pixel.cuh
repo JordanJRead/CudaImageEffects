@@ -43,13 +43,11 @@ public:
 
     __host__ __device__
     T& operator[](size_t i) {
-        if (i >= ChannelCount)
-            return mData[0];
         return mData[i];
     }
 
     __host__ __device__
-    T operator[](size_t i) const {
+    const T& operator[](size_t i) const {
         return mData[i];
     }
 
