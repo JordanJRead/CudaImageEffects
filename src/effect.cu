@@ -1,4 +1,6 @@
 #include "../include/effect.cuh"
+#include "../include/effecttype.h"
+#include <stdio.h>
 #include <string>
 #include <string_view>
 #include <array>
@@ -18,6 +20,21 @@ namespace Effect {
             pixel[0] = 1 - pixel[0];
             pixel[1] = 1 - pixel[1];
             pixel[2] = 1 - pixel[2];
+
+            image.setPixel(indices, Pixel<3, byte>{ pixel });
+        }
+
+        __global__
+        void KERNALUVImage(ImageGPU<3, byte> image) {
+            Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
+            if (indices.first == (size_t)-1)
+                return;
+
+            Pixel<3, float> pixel;
+
+            pixel[0] = (float)indices.first / image.getWidth();
+            pixel[1] = (float)indices.second / image.getHeight();
+            pixel[2] = 0;
 
             image.setPixel(indices, Pixel<3, byte>{ pixel });
         }
@@ -114,6 +131,9 @@ namespace Effect {
                 KERNALInvertImage<<<blockCount, blockDim>>>(gpuImage);
             if (type == EffectType::stipple)
                 KERNALStippleImage<<<blockCount, blockDim>>>(gpuImage);
+                KERNALInvertImage<<<blockCount, blockDim>>>(gpuImage);
+            if (type == EffectType::coords)
+                KERNALUVImage<<<blockCount, blockDim>>>(gpuImage);
             ImageCPU alteredImage{ gpuImage };
             
             return alteredImage;
@@ -121,7 +141,8 @@ namespace Effect {
     }
 
     ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage) {
-        return Sort::sortImage(originalImage);
+        if (type == EffectType::sort)
+            return Sort::sortImage(originalImage);
         return doSimpleImageEffect(type, originalImage);
     }
 }

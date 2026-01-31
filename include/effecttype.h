@@ -9,13 +9,17 @@ namespace EffectType {
     enum Type {
         stipple,
         invert,
+        coords,
+        sort,
         max_effects
     };
 
     using namespace std::string_view_literals;
     constexpr std::array<std::string_view, max_effects> effectNames {
         "stipple"sv,
-        "invert"sv
+        "invert"sv,
+        "coords"sv,
+        "sort"sv
     };
     
     inline

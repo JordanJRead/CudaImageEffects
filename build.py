@@ -1,5 +1,6 @@
 from pathlib import *
 import os
+import sys
 
 """
 A python script that build a CUDA program by creating an nvcc call that compiles
@@ -15,6 +16,10 @@ def getAllSourceFiles(dir: Path) -> list[Path]:
             sourceFiles.extend(getAllSourceFiles(item))
     return sourceFiles
 
+debug = False
+if len(sys.argv) > 1:
+    debug = True
+
 cwd = Path(".")
 
 sourceFiles = getAllSourceFiles(cwd)
@@ -27,7 +32,10 @@ for file in sourceFiles:
     fileNamesNoExt.append(file.name.split(".")[0])
 
 #nvcc -dc src/*.cu main.cu && nvcc *.obj -o main && del *.obj
-command = "nvcc -std=c++20 -dc "
+if (False):
+    pass
+else:
+    command = "nvcc -std=c++20 -dc "
 
 for relFileName in relFileNames:
     command += relFileName + " "

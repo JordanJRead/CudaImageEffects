@@ -20,6 +20,7 @@ class Pixel {
 public:
     __host__ __device__
     Pixel() {}
+    Pixel(const Pixel<ChannelCount, T>&) = default;
 
     __host__ __device__
     Pixel(const Pixel<ChannelCount, byte>& bytePixel) requires IsFloat<T> {
@@ -32,6 +33,13 @@ public:
     Pixel(const Pixel<ChannelCount, float>& floatPixel) requires IsByte<T> {
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
             mData[i] = (byte)(floatPixel[i] * 255);
+        }
+    }
+
+        __host__ __device__
+    Pixel(const Pixel<ChannelCount, int16_t>& intPixel) requires IsByte<T> {
+        for (size_t i{ 0 }; i < ChannelCount; ++i) {
+            mData[i] = intPixel[0] > 0 ? 255 : 0;
         }
     }
     
@@ -52,7 +60,7 @@ public:
     }
 
 private:
-    cuda::std::array<T, ChannelCount> mData;
+    cuda::std::array<T, ChannelCount> mData = {};
 };
 
 #endif

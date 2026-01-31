@@ -68,13 +68,20 @@ public:
     ImageGPU& operator=(ImageGPU&&) = delete;
     
     __device__
-    Indices getPixelIndices(dim3 blockDim, dim3 blockIdx, dim3 threadIdx) const {
+    Indices getPixelIndices(dim3 blockDim, dim3 blockIdx, dim3 threadIdx, bool debug = false) const {
         Indices indices{ 
             blockDim.x * blockIdx.x + threadIdx.x,
             blockDim.y * blockIdx.y + threadIdx.y
         };
-        if (indices.first >= mWidth || indices.second >= mHeight)
+
+        if (debug) {
+            printf("Indices: %u %u\n", blockDim.y, threadIdx.y);
+        }
+        if (indices.first >= mWidth || indices.second >= mHeight) {
+            printf("INVALID\n");
             return { (size_t)-1, (size_t)-1 };
+        }
+        printf("%llu %llu\n", indices.first, indices.second);
         return indices;
     }
 
