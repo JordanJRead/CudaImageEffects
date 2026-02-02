@@ -74,14 +74,14 @@ public:
             blockDim.y * blockIdx.y + threadIdx.y
         };
 
-        if (debug) {
-            printf("Indices: %u %u\n", blockDim.y, threadIdx.y);
-        }
         if (indices.first >= mWidth || indices.second >= mHeight) {
-            printf("INVALID\n");
             return { (size_t)-1, (size_t)-1 };
+            if (debug) {
+                printf("INVALID\n");
+            }
         }
-        printf("%llu %llu\n", indices.first, indices.second);
+        if (debug)
+            printf("%llu %llu\n", indices.first, indices.second);
         return indices;
     }
 
@@ -99,11 +99,12 @@ public:
     }
 
     __device__
-    void setPixel(const Indices& indices, const Pixel<ChannelCount, T>& pixel) {
+    void setPixel(const Indices& indices, const Pixel<ChannelCount, T>& pixel, bool debug = false) {
         int dataIndex = (indices.first + indices.second * mWidth) * ChannelCount;
-
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
             mData[dataIndex + i] = pixel[i];
+            if (debug)
+                printf("Writing %d to %d, %d\n", (int)pixel[i], (int)(indices.first), (int)(indices.second));
         }
     }
 

@@ -10,7 +10,8 @@ namespace EffectType {
         stipple,
         invert,
         coords,
-        sort,
+        sort_vert,
+        sort_hor,
         max_effects
     };
 
@@ -19,7 +20,8 @@ namespace EffectType {
         "stipple"sv,
         "invert"sv,
         "coords"sv,
-        "sort"sv
+        "sort_vert"sv,
+        "sort_hor"sv
     };
     
     inline

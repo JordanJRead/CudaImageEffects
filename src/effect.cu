@@ -141,8 +141,10 @@ namespace Effect {
     }
 
     ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage) {
-        if (type == EffectType::sort)
-            return Sort::sortImage(originalImage);
+        if (type == EffectType::sort_vert)
+            return Sort::sortImage(originalImage, Sort::Direction::vertical);
+        else if (type == EffectType::sort_hor)
+            return Sort::sortImage(originalImage, Sort::Direction::horizontal);
         return doSimpleImageEffect(type, originalImage);
     }
 }

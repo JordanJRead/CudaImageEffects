@@ -35,7 +35,7 @@ for file in sourceFiles:
 if (False):
     pass
 else:
-    command = "nvcc -std=c++20 -dc "
+    command = "nvcc -std=c++20 -dc -O3 "
 
 for relFileName in relFileNames:
     command += relFileName + " "

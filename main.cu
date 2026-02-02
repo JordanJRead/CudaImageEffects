@@ -6,10 +6,13 @@
 #include "include/effect.cuh"
 #include "include/imagecpu.h"
 #include "include/effecttype.h"
+#include "include/timer.h"
 
 typedef unsigned char byte;
 
 int main(int argc, char* argv[]) {
+    Timer<1> timer;
+    timer.start(0);
     // Input validation
     if (argc != 3 && argc != 4) {
         printf("Usage: ./main (%s) (input_image_file) [output_image_file]", EffectType::getPipedEffectNames().c_str());
@@ -52,6 +55,7 @@ int main(int argc, char* argv[]) {
     if (alteredImage.getWriteError()) {
         return 1;
     }
-
+    timer.end(0);
+    timer.outputToFile("times.txt");
     return 0;
 }
