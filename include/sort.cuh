@@ -159,8 +159,17 @@ namespace Sort {
         }
     }
 
-    ImageCPU sortImage(const ImageCPU& sourceImage, Direction direction) {
-        constexpr int SQUARE_BLOCK_WIDTH{ 16 };
+    ImageCPU sortImage(const ImageCPU& sourceImage, Direction direction, float minContrast, float maxContrast, EffectType::Type type) {
+        Timer<6> timer{{
+            "Create values",
+            "Create contrast",
+            "Create stride",
+            "Create smooth",
+            "Move GPU image to CPU",
+            "Move CPU image to GPU"
+        }};
+        constexpr int SQUARE_BLOCK_WIDTH{ 8 };
+        constexpr int LINE_BLOCK_WIDTH{ 256 };
 
         dim3 squareThreadsPerBlock = dim3(SQUARE_BLOCK_WIDTH, SQUARE_BLOCK_WIDTH);
         dim3 squareBlockCount = dim3((sourceImage.getWidth() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH, (sourceImage.getWidth() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH);
@@ -168,35 +177,58 @@ namespace Sort {
         dim3 lineThreadsPerBlock;
         dim3 lineBlockCount;
         if (direction == Direction::vertical) {
-            lineThreadsPerBlock = dim3(256, 1);
-            lineBlockCount = dim3((sourceImage.getWidth() + 256 - 1) / 256, 1);
+            lineThreadsPerBlock = dim3(LINE_BLOCK_WIDTH, 1);
+            lineBlockCount = dim3((sourceImage.getWidth() + LINE_BLOCK_WIDTH - 1) / LINE_BLOCK_WIDTH, 1);
         }
         else {
-            lineThreadsPerBlock = dim3(1, 256);
-            lineBlockCount = dim3(1, (sourceImage.getHeight() + 256 - 1) / 256);
+            lineThreadsPerBlock = dim3(1, LINE_BLOCK_WIDTH);
+            lineBlockCount = dim3(1, (sourceImage.getHeight() + LINE_BLOCK_WIDTH - 1) / LINE_BLOCK_WIDTH);
         }
 
+        timer.start(5);
         ImageGPU<3, byte> gpuSourceImage{ ImageGPU<3, byte>::copyFromCPU(sourceImage) };
+        cudaDeviceSynchronize();
+        timer.end(5);
         ImageGPU<1, __half> gpuValueImage{ ImageGPU<1, __half>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, byte> gpuContrastMaskImage{ ImageGPU<1, byte>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, int16_t> gpuStrideMaskImage{ ImageGPU<1, int16_t>::copyDimFromCPU(sourceImage) };
-        ImageGPU<3, byte> gpuSortedImage{ ImageGPU<3, byte>::copyDimFromCPU(sourceImage) };
+        ImageGPU<3, byte> outputImage{ ImageGPU<3, byte>::copyDimFromCPU(sourceImage) };
 
+        timer.start(0);
         KERNELRGB8ToValue<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuValueImage);
+        cudaDeviceSynchronize();
+        timer.end(0);
 
-        KERNELSourceToContrastMask<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuContrastMaskImage, 0.3, 0.7);
+        timer.start(1);
+        KERNELSourceToContrastMask<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuContrastMaskImage, minContrast, maxContrast);
+        cudaDeviceSynchronize();
+        timer.end(1);
 
+        if (type == EffectType::contrast) {
+            KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuContrastMaskImage, outputImage);
+            return ImageCPU{ outputImage };
+        }
+
+        timer.start(2);
         KERNELContrastMaskToStrideMask<<<lineBlockCount, lineThreadsPerBlock>>>(gpuContrastMaskImage, gpuStrideMaskImage, direction);
+        cudaDeviceSynchronize();
+        timer.end(2);
 
         // KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(), >>>(gpuStrideMaskImage, gpuValueImage, gpuSortedImage);
 
         // Debugging
-        KERNELStrideMaskToNeatRGB8<<<lineBlockCount, lineThreadsPerBlock>>>(gpuStrideMaskImage, gpuSortedImage, direction);
+        timer.start(3);
+        KERNELStrideMaskToNeatRGB8<<<lineBlockCount, lineThreadsPerBlock>>>(gpuStrideMaskImage, outputImage, direction);
+        cudaDeviceSynchronize();
+        timer.end(3);
+
         // KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuStrideMaskImage, gpuSortedImage);
 
+        timer.start(4);
+        ImageCPU displayImage{ outputImage };
         cudaDeviceSynchronize();
-
-        ImageCPU displayImage{ gpuSortedImage };
+        timer.end(4);
+        timer.outputToFile("times.txt");
         return displayImage;
     }
 }

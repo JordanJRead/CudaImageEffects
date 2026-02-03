@@ -12,6 +12,7 @@ namespace EffectType {
         coords,
         sort_vert,
         sort_hor,
+        contrast,
         max_effects
     };
 
@@ -21,7 +22,8 @@ namespace EffectType {
         "invert"sv,
         "coords"sv,
         "sort_vert"sv,
-        "sort_hor"sv
+        "sort_hor"sv,
+        "contrast"sv
     };
     
     inline

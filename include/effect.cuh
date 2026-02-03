@@ -9,7 +9,7 @@
 #include "effecttype.h"
 
 namespace Effect {
-    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage);
+    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage, float minContrast, float maxContrast);
 }
 
 #endif

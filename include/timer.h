@@ -5,12 +5,16 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <array>
 
 typedef std::chrono::steady_clock::time_point TIME;
 
 template <int ActivityCount>
 class Timer {
 public:
+	Timer(const std::array<std::string, ActivityCount>& names) {
+		mNames = names;
+	}
 
 	void start(int activityIndex) {
 		startTimes[activityIndex] = std::chrono::steady_clock::now();
@@ -36,7 +40,7 @@ public:
 				continue;
 
 			double averageTime{ totalTimeRan[i] / timesRan[i] };
-			file << "Activity " << i << ": " << averageTime << "ms" << "\n";
+			file << mNames[i] << ": " << averageTime << "ms" << "\n";
 		}
 
 		file.close();
@@ -46,6 +50,7 @@ private:
 	std::array<double, ActivityCount> totalTimeRan{};
 	std::array<int, ActivityCount> timesRan{};
 	std::array<TIME, ActivityCount> startTimes{};
+	std::array<std::string, ActivityCount> mNames;
 };
 
 #endif

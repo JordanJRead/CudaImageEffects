@@ -140,11 +140,11 @@ namespace Effect {
         }
     }
 
-    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage) {
-        if (type == EffectType::sort_vert)
-            return Sort::sortImage(originalImage, Sort::Direction::vertical);
+    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage, float minContrast, float maxContrast) {
+        if (type == EffectType::sort_vert || type == EffectType::contrast)
+            return Sort::sortImage(originalImage, Sort::Direction::vertical, minContrast, maxContrast, type);
         else if (type == EffectType::sort_hor)
-            return Sort::sortImage(originalImage, Sort::Direction::horizontal);
+            return Sort::sortImage(originalImage, Sort::Direction::horizontal, minContrast, maxContrast, type);
         return doSimpleImageEffect(type, originalImage);
     }
 }
