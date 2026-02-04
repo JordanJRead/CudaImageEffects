@@ -1,6 +1,6 @@
-Create values: 3ms
+Create values: 7ms
 Create contrast: 0ms
 Create stride: 0ms
-Create smooth: 1ms
+Sort: 0ms
 Move GPU image to CPU: 0ms
 Move CPU image to GPU: 86ms

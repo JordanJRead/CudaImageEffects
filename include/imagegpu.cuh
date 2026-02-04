@@ -91,6 +91,10 @@ public:
 
         Pixel<ChannelCount, T> pixel;
 
+        if (dataIndex >= mWidth * mHeight * ChannelCount) {
+            printf("uh oh...\n");
+        }
+
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
             pixel[i] = mData[dataIndex + i];
         }

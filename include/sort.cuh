@@ -147,15 +147,44 @@ namespace Sort {
         }
 
         __global__
-        void KERNELStrideMaskAndValuesToRGB8Sorted(const ImageGPU<1, int16_t> strideMask, const ImageGPU<1, __half> valueImage, ImageGPU<3, byte> sortedOutput) {
-            Indices indices = strideMask.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+        void KERNELStrideMaskAndValuesToRGB8Sorted(const ImageGPU<1, int16_t> strideMask, ImageGPU<1, __half> valueImage, const ImageGPU<3, byte> sourceImage, ImageGPU<3, byte> sortedOutput, Direction direction) {
+            const Indices startingIndices = strideMask.getPixelIndices(blockDim, blockIdx, threadIdx);
+            if (startingIndices.first == (size_t)-1)
                 return;
-            int16_t strideLength{ strideMask.sample(indices)[0] };
+            int16_t strideLength{ strideMask.sample(startingIndices)[0] };
             if (strideLength == 0)
                 return;
+
+            bool debugPixel{ startingIndices.first == 0 && startingIndices.second == 0 };
+            bool vert = direction == Direction::vertical;
             
-            extern __shared__ __half arrayToSort[];
+            Indices currentIndices{ startingIndices };
+            
+            bool done{ false };
+            while (!done) {
+                __half min{ 1000 };
+                Indices minIndices;
+                Indices testIndices{ startingIndices };
+                for (int i{ 0 }; i < strideLength; ++i) {
+                    vert ? testIndices.second += 1 : testIndices.first += 1;
+                    __half value{ valueImage.sample(testIndices)[0] };
+                    if (value < min && value != (__half)-1) {
+                        min = value;
+                        minIndices = testIndices;
+                    }
+                }
+                if (min != (__half)1000) {
+                    // Found a min
+                    sortedOutput.setPixel(currentIndices, sourceImage.sample(minIndices));
+                    Pixel<1, __half> usedPixel;
+                    usedPixel[0] = (__half)-1;
+                    valueImage.setPixel(minIndices, usedPixel);
+                    vert ? currentIndices.second++ : currentIndices.first++;
+                }
+                else {
+                    done = true;
+                }
+            }
         }
     }
 
@@ -164,7 +193,7 @@ namespace Sort {
             "Create values",
             "Create contrast",
             "Create stride",
-            "Create smooth",
+            "Sort",
             "Move GPU image to CPU",
             "Move CPU image to GPU"
         }};
@@ -192,7 +221,7 @@ namespace Sort {
         ImageGPU<1, __half> gpuValueImage{ ImageGPU<1, __half>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, byte> gpuContrastMaskImage{ ImageGPU<1, byte>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, int16_t> gpuStrideMaskImage{ ImageGPU<1, int16_t>::copyDimFromCPU(sourceImage) };
-        ImageGPU<3, byte> outputImage{ ImageGPU<3, byte>::copyDimFromCPU(sourceImage) };
+        ImageGPU<3, byte> gpuOutputImage{ ImageGPU<3, byte>::copyFromCPU(sourceImage) };
 
         timer.start(0);
         KERNELRGB8ToValue<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuValueImage);
@@ -205,8 +234,8 @@ namespace Sort {
         timer.end(1);
 
         if (type == EffectType::contrast) {
-            KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuContrastMaskImage, outputImage);
-            return ImageCPU{ outputImage };
+            KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuContrastMaskImage, gpuOutputImage);
+            return ImageCPU{ gpuOutputImage };
         }
 
         timer.start(2);
@@ -214,18 +243,16 @@ namespace Sort {
         cudaDeviceSynchronize();
         timer.end(2);
 
-        // KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(), >>>(gpuStrideMaskImage, gpuValueImage, gpuSortedImage);
-
-        // Debugging
         timer.start(3);
-        KERNELStrideMaskToNeatRGB8<<<lineBlockCount, lineThreadsPerBlock>>>(gpuStrideMaskImage, outputImage, direction);
-        cudaDeviceSynchronize();
+        KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(1, 1)>>>(gpuStrideMaskImage, gpuValueImage, gpuSourceImage, gpuOutputImage, direction);
         timer.end(3);
 
-        // KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuStrideMaskImage, gpuSortedImage);
+        // Debugging
+        // KERNELStrideMaskToNeatRGB8<<<lineBlockCount, lineThreadsPerBlock>>>(gpuStrideMaskImage, outputImage, direction);
+        cudaDeviceSynchronize();
 
         timer.start(4);
-        ImageCPU displayImage{ outputImage };
+        ImageCPU displayImage{ gpuOutputImage };
         cudaDeviceSynchronize();
         timer.end(4);
         timer.outputToFile("times.txt");
