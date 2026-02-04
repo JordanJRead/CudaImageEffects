@@ -1,6 +1,6 @@
-Create values: 7ms
+Create values: 8ms
 Create contrast: 0ms
 Create stride: 0ms
 Sort: 0ms
-Move GPU image to CPU: 0ms
-Move CPU image to GPU: 86ms
+Move GPU image to CPU: 3ms
+Move CPU image to GPU: 120ms

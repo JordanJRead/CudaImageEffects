@@ -245,6 +245,7 @@ namespace Sort {
 
         timer.start(3);
         KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(1, 1)>>>(gpuStrideMaskImage, gpuValueImage, gpuSourceImage, gpuOutputImage, direction);
+        cudaDeviceSynchronize();
         timer.end(3);
 
         // Debugging
