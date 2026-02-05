@@ -128,13 +128,15 @@ namespace Effect {
             dim3 blockDim = dim3(BLOCK_WIDTH, BLOCK_WIDTH);
             dim3 blockCount = dim3((gpuImage.getWidth() + BLOCK_WIDTH - 1) / BLOCK_WIDTH, (gpuImage.getHeight() + BLOCK_WIDTH - 1) / BLOCK_WIDTH);
 
-            if (type == EffectType::invert)
+            if (type == EffectType::invert) {
                 KERNALInvertImage<<<blockCount, blockDim>>>(gpuImage);
-            if (type == EffectType::stipple)
+            }
+            if (type == EffectType::stipple) {
                 KERNALStippleImage<<<blockCount, blockDim>>>(gpuImage);
-                KERNALInvertImage<<<blockCount, blockDim>>>(gpuImage);
-            if (type == EffectType::coords)
+            }
+            if (type == EffectType::coords) {
                 KERNALUVImage<<<blockCount, blockDim>>>(gpuImage);
+            }
             ImageCPU alteredImage{ gpuImage };
             
             return alteredImage;
@@ -142,10 +144,12 @@ namespace Effect {
     }
 
     ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage, float minContrast, float maxContrast) {
-        if (type == EffectType::sort_vert || type == EffectType::contrast)
+        if (type == EffectType::sort_vert || type == EffectType::contrast) {
             return Sort::sortImage(originalImage, Sort::Direction::vertical, minContrast, maxContrast, type);
-        else if (type == EffectType::sort_hor)
+        }
+        else if (type == EffectType::sort_hor) {
             return Sort::sortImage(originalImage, Sort::Direction::horizontal, minContrast, maxContrast, type);
+        }
         return doSimpleImageEffect(type, originalImage);
     }
 }
