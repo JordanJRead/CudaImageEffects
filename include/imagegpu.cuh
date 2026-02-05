@@ -5,9 +5,9 @@
 #include "imagecpu.h"
 #include "pixel.cuh"
 #include <stdio.h>
+#include "indices.cuh"
 
 typedef unsigned char byte;
-typedef cuda::std::pair<size_t, size_t> Indices;
 
 template <size_t ChannelCount, typename T>
 concept IsRGB8 = ChannelCount == 3 && std::is_same_v<T, byte>;
@@ -68,32 +68,24 @@ public:
     ImageGPU& operator=(ImageGPU&&) = delete;
     
     __device__
-    Indices getPixelIndices(dim3 blockDim, dim3 blockIdx, dim3 threadIdx, bool debug = false) const {
+    Indices getPixelIndices(dim3 blockDim, dim3 blockIdx, dim3 threadIdx) const {
         Indices indices{ 
             blockDim.x * blockIdx.x + threadIdx.x,
             blockDim.y * blockIdx.y + threadIdx.y
         };
 
-        if (indices.first >= mWidth || indices.second >= mHeight) {
+        if (indices.x >= mWidth || indices.y >= mHeight) {
             return { (size_t)-1, (size_t)-1 };
-            if (debug) {
-                printf("INVALID\n");
-            }
         }
-        if (debug)
-            printf("%llu %llu\n", indices.first, indices.second);
+
         return indices;
     }
 
     __device__
     Pixel<ChannelCount, T> sample(const Indices& indices) const {
-        int dataIndex = (indices.first + indices.second * mWidth) * ChannelCount;
+        int dataIndex = (indices.x + indices.y * mWidth) * ChannelCount;
 
         Pixel<ChannelCount, T> pixel;
-
-        if (dataIndex >= mWidth * mHeight * ChannelCount) {
-            printf("uh oh...\n");
-        }
 
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
             pixel[i] = mData[dataIndex + i];
@@ -103,12 +95,10 @@ public:
     }
 
     __device__
-    void setPixel(const Indices& indices, const Pixel<ChannelCount, T>& pixel, bool debug = false) {
-        int dataIndex = (indices.first + indices.second * mWidth) * ChannelCount;
+    void setPixel(const Indices& indices, const Pixel<ChannelCount, T>& pixel) {
+        int dataIndex = (indices.x + indices.y * mWidth) * ChannelCount;
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
             mData[dataIndex + i] = pixel[i];
-            if (debug)
-                printf("Writing %d to %d, %d\n", (int)pixel[i], (int)(indices.first), (int)(indices.second));
         }
     }
 

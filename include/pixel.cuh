@@ -33,7 +33,7 @@ public:
     __host__ __device__
     Pixel(const Pixel<ChannelCount, FloatingType>& floatPixel) requires (IsByte<T> && IsFloating<FloatingType>) {
         for (size_t i{ 0 }; i < ChannelCount; ++i) {
-            mData[i] = (byte)(floatPixel[i] * 255);
+            mData[i] = (byte)(floatPixel[i] * (FloatingType)255);
         }
     }
 

@@ -21,7 +21,7 @@ ARGS:
 int main(int argc, char* argv[]) {
     // Input validation
     if (argc != 3 && argc != 5) {
-        printf("Usage: ./main (input_image_file) (%s) [contrast_min] [contrast_max]", EffectType::getPipedEffectNames().c_str());
+        printf("Usage: ./main (input_image_file) (%s) [contrast_min] [contrast_max]\ncontrast_min/max are used for sort_vert, sort_hor, and contrast.", EffectType::getPipedEffectNames().c_str());
         return 1;
     }
 

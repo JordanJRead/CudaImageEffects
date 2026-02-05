@@ -1,5 +1,9 @@
 # Usage
 
-./main (stipple | invert) (input_image_file) [output_image_file]
+Usage: ./main (input_image_file) (effect_name) [contrast_min] [contrast_max]
 
-Output file will default to 'images/{input_file_name}_{effect_name}.png'
+Effect name is one of <stipple | invert | coords | sort_vert | sort_hor | contrast>
+
+contrast_min/max are used for sort_vert, sort_hor, and contrast.
+
+Output file is 'images/{input_file_name}_{effect_name}.png'

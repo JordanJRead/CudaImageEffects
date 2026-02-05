@@ -6,13 +6,14 @@
 #include <array>
 #include "../include/imagegpu.cuh"
 #include "../include/sort.cuh"
+#include "../include/indices.cuh"
 
 namespace Effect {
     namespace {
         __global__
         void KERNALInvertImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, float> pixel{ image.sample(indices) };
@@ -27,13 +28,13 @@ namespace Effect {
         __global__
         void KERNALUVImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, float> pixel;
 
-            pixel[0] = (float)indices.first / image.getWidth();
-            pixel[1] = (float)indices.second / image.getHeight();
+            pixel[0] = (float)indices.x / image.getWidth();
+            pixel[1] = (float)indices.y / image.getHeight();
             pixel[2] = 0;
 
             image.setPixel(indices, Pixel<3, byte>{ pixel });
@@ -42,7 +43,7 @@ namespace Effect {
         __global__
         void KERNALStippleImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, float> pixel{ image.sample(indices) };
@@ -54,8 +55,8 @@ namespace Effect {
                 threshold = thresholdCount - 1;
             bool isWhite = false;
 
-            size_t pixelIndexX{ indices.first };
-            size_t pixelIndexY{ indices.second };
+            size_t pixelIndexX{ indices.x };
+            size_t pixelIndexY{ indices.y };
             
             switch(threshold) {
             case 6:

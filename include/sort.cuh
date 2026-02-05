@@ -4,6 +4,7 @@
 #include "imagegpu.cuh"
 #include "imagecpu.h"
 #include "timer.h"
+#include "effecttype.h"
 
 namespace Sort {
 
@@ -16,7 +17,7 @@ namespace Sort {
         __global__
         void KERNELRGB8ToValue(const ImageGPU<3, byte> sourceImage, ImageGPU<1, __half> valueImage) {
             Indices indices = sourceImage.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, __half> pixel{ sourceImage.sample(indices) };
@@ -33,7 +34,7 @@ namespace Sort {
         __global__
         void KERNELOneValueToRGB8(const ImageGPU<1, T> oneChannelImage, ImageGPU<3, byte> rgb8Image) {
             Indices indices = oneChannelImage.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<1, T> pixel{ oneChannelImage.sample(indices) };
@@ -49,7 +50,7 @@ namespace Sort {
         __global__
         void KERNELSourceToContrastMask(const ImageGPU<3, byte> sourceImage, ImageGPU<1, byte> contrastMask, float minBrightness, float maxBrightness) {
             Indices indices = sourceImage.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
             
             float brightness = Pixel<3, float>{ sourceImage.sample(indices) }.getBrightness();
@@ -62,7 +63,7 @@ namespace Sort {
         __global__
         void KERNELContrastMaskToStrideMask(const ImageGPU<1, byte> contrastMask, ImageGPU<1, int16_t> strideMask, Direction direction) {
             Indices indices = contrastMask.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             bool vert = direction == Direction::vertical;
@@ -102,7 +103,7 @@ namespace Sort {
                     strideMask.setPixel(indices, pixel);
                 }
 
-                vert ? indices.second++ : indices.first++;
+                vert ? indices.y++ : indices.x++;
             }
 
             if (isInStride) {
@@ -116,7 +117,7 @@ namespace Sort {
         __global__
         void KERNELStrideMaskToNeatRGB8(const ImageGPU<1, int16_t> strideMask, ImageGPU<3, byte> displayImage, Direction direction) {
             Indices indices = strideMask.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
             bool vert = direction == Direction::vertical;
             
@@ -142,44 +143,50 @@ namespace Sort {
                 if (strideLengthToGo < 0)
                     strideLengthToGo = 0;
             
-                vert ? (indices.second++) : (indices.first++);
+                vert ? (indices.y++) : (indices.x++);
             }
         }
 
         __global__
         void KERNELStrideMaskAndValuesToRGB8Sorted(const ImageGPU<1, int16_t> strideMask, ImageGPU<1, __half> valueImage, const ImageGPU<3, byte> sourceImage, ImageGPU<3, byte> sortedOutput, Direction direction) {
             const Indices startingIndices = strideMask.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (startingIndices.first == (size_t)-1)
+            if (!startingIndices.isValid())
                 return;
             int16_t strideLength{ strideMask.sample(startingIndices)[0] };
             if (strideLength == 0)
                 return;
 
-            bool debugPixel{ startingIndices.first == 0 && startingIndices.second == 0 };
             bool vert = direction == Direction::vertical;
+            const Indices dirIndices{ (!vert) ? (size_t)1 : (size_t)0, vert ? (size_t)1 : (size_t)0 };
             
+            extern __shared__ __half myValueArray[];
+
+            for (int i{ 0 }; i < strideLength; ++i) {
+                myValueArray[i] = valueImage.sample(startingIndices + dirIndices * i)[0];
+            }
             Indices currentIndices{ startingIndices };
-            
             bool done{ false };
             while (!done) {
                 __half min{ 1000 };
                 Indices minIndices;
-                Indices testIndices{ startingIndices };
+                int minIndex;
+
                 for (int i{ 0 }; i < strideLength; ++i) {
-                    vert ? testIndices.second += 1 : testIndices.first += 1;
-                    __half value{ valueImage.sample(testIndices)[0] };
+                    __half value{ myValueArray[i] };
                     if (value < min && value != (__half)-1) {
                         min = value;
-                        minIndices = testIndices;
+                        minIndices = startingIndices + dirIndices * i;
+                        minIndex = i;
                     }
                 }
                 if (min != (__half)1000) {
                     // Found a min
-                    sortedOutput.setPixel(currentIndices, sourceImage.sample(minIndices));
-                    Pixel<1, __half> usedPixel;
-                    usedPixel[0] = (__half)-1;
-                    valueImage.setPixel(minIndices, usedPixel);
-                    vert ? currentIndices.second++ : currentIndices.first++;
+                    Pixel<3, byte> pixelToSet{ sourceImage.sample(minIndices) };
+                    sortedOutput.setPixel(currentIndices, pixelToSet);
+
+                    myValueArray[minIndex] = (__half)-1;
+
+                    currentIndices = currentIndices + dirIndices;
                 }
                 else {
                     done = true;
@@ -190,18 +197,18 @@ namespace Sort {
 
     ImageCPU sortImage(const ImageCPU& sourceImage, Direction direction, float minContrast, float maxContrast, EffectType::Type type) {
         Timer<6> timer{{
+            "Move CPU image to GPU",
             "Create values",
             "Create contrast",
             "Create stride",
             "Sort",
-            "Move GPU image to CPU",
-            "Move CPU image to GPU"
+            "Move GPU image to CPU"
         }};
         constexpr int SQUARE_BLOCK_WIDTH{ 8 };
         constexpr int LINE_BLOCK_WIDTH{ 256 };
 
         dim3 squareThreadsPerBlock = dim3(SQUARE_BLOCK_WIDTH, SQUARE_BLOCK_WIDTH);
-        dim3 squareBlockCount = dim3((sourceImage.getWidth() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH, (sourceImage.getWidth() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH);
+        dim3 squareBlockCount = dim3((sourceImage.getWidth() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH, (sourceImage.getHeight() + SQUARE_BLOCK_WIDTH - 1) / SQUARE_BLOCK_WIDTH);
 
         dim3 lineThreadsPerBlock;
         dim3 lineBlockCount;
@@ -214,48 +221,46 @@ namespace Sort {
             lineBlockCount = dim3(1, (sourceImage.getHeight() + LINE_BLOCK_WIDTH - 1) / LINE_BLOCK_WIDTH);
         }
 
-        timer.start(5);
+        timer.start(0);
         ImageGPU<3, byte> gpuSourceImage{ ImageGPU<3, byte>::copyFromCPU(sourceImage) };
         cudaDeviceSynchronize();
-        timer.end(5);
+        timer.end(0);
         ImageGPU<1, __half> gpuValueImage{ ImageGPU<1, __half>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, byte> gpuContrastMaskImage{ ImageGPU<1, byte>::copyDimFromCPU(sourceImage) };
         ImageGPU<1, int16_t> gpuStrideMaskImage{ ImageGPU<1, int16_t>::copyDimFromCPU(sourceImage) };
         ImageGPU<3, byte> gpuOutputImage{ ImageGPU<3, byte>::copyFromCPU(sourceImage) };
 
-        timer.start(0);
+        timer.start(1);
         KERNELRGB8ToValue<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuValueImage);
         cudaDeviceSynchronize();
-        timer.end(0);
+        timer.end(1);
 
-        timer.start(1);
+        timer.start(2);
         KERNELSourceToContrastMask<<<squareBlockCount, squareThreadsPerBlock>>>(gpuSourceImage, gpuContrastMaskImage, minContrast, maxContrast);
         cudaDeviceSynchronize();
-        timer.end(1);
+        timer.end(2);
 
         if (type == EffectType::contrast) {
             KERNELOneValueToRGB8<<<squareBlockCount, squareThreadsPerBlock>>>(gpuContrastMaskImage, gpuOutputImage);
             return ImageCPU{ gpuOutputImage };
         }
 
-        timer.start(2);
-        KERNELContrastMaskToStrideMask<<<lineBlockCount, lineThreadsPerBlock>>>(gpuContrastMaskImage, gpuStrideMaskImage, direction);
-        cudaDeviceSynchronize();
-        timer.end(2);
-
         timer.start(3);
-        KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(1, 1)>>>(gpuStrideMaskImage, gpuValueImage, gpuSourceImage, gpuOutputImage, direction);
+        KERNELContrastMaskToStrideMask<<<lineBlockCount, lineThreadsPerBlock>>>(gpuContrastMaskImage, gpuStrideMaskImage, direction);
         cudaDeviceSynchronize();
         timer.end(3);
 
-        // Debugging
-        // KERNELStrideMaskToNeatRGB8<<<lineBlockCount, lineThreadsPerBlock>>>(gpuStrideMaskImage, outputImage, direction);
-        cudaDeviceSynchronize();
-
+        int maxStrideLength{ direction == Direction::vertical ? sourceImage.getHeight() : sourceImage.getWidth() };
         timer.start(4);
-        ImageCPU displayImage{ gpuOutputImage };
+        KERNELStrideMaskAndValuesToRGB8Sorted<<<dim3(sourceImage.getWidth(), sourceImage.getHeight()), dim3(1, 1), maxStrideLength * sizeof(__half)>>>(gpuStrideMaskImage, gpuValueImage, gpuSourceImage, gpuOutputImage, direction);
         cudaDeviceSynchronize();
         timer.end(4);
+
+        timer.start(5);
+        ImageCPU displayImage{ gpuOutputImage };
+        cudaDeviceSynchronize();
+        timer.end(5);
+
         timer.outputToFile("times.txt");
         return displayImage;
     }
