@@ -195,6 +195,7 @@ namespace Sort {
         }
     }
 
+    // Algorithm by Acerola (https://github.com/GarrettGunnell/Pixel-Sorting/tree/main)
     ImageCPU sortImage(const ImageCPU& sourceImage, Direction direction, float minContrast, float maxContrast, EffectType::Type type) {
         Timer<6> timer{{
             "Move CPU image to GPU",
@@ -261,7 +262,7 @@ namespace Sort {
         cudaDeviceSynchronize();
         timer.end(5);
 
-        timer.outputToFile("times.txt");
+        timer.outputToFile("sort_times.txt");
         return displayImage;
     }
 }
