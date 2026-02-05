@@ -1,15 +1,19 @@
 #include "../include/effect.cuh"
+#include "../include/effecttype.h"
+#include <stdio.h>
 #include <string>
 #include <string_view>
 #include <array>
 #include "../include/imagegpu.cuh"
+#include "../include/sort.cuh"
+#include "../include/indices.cuh"
 
 namespace Effect {
     namespace {
         __global__
         void KERNALInvertImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, float> pixel{ image.sample(indices) };
@@ -21,10 +25,25 @@ namespace Effect {
             image.setPixel(indices, Pixel<3, byte>{ pixel });
         }
 
-                __global__
+        __global__
+        void KERNALUVImage(ImageGPU<3, byte> image) {
+            Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
+            if (!indices.isValid())
+                return;
+
+            Pixel<3, float> pixel;
+
+            pixel[0] = (float)indices.x / image.getWidth();
+            pixel[1] = (float)indices.y / image.getHeight();
+            pixel[2] = 0;
+
+            image.setPixel(indices, Pixel<3, byte>{ pixel });
+        }
+
+        __global__
         void KERNALStippleImage(ImageGPU<3, byte> image) {
             Indices indices = image.getPixelIndices(blockDim, blockIdx, threadIdx);
-            if (indices.first == (size_t)-1)
+            if (!indices.isValid())
                 return;
 
             Pixel<3, float> pixel{ image.sample(indices) };
@@ -36,8 +55,8 @@ namespace Effect {
                 threshold = thresholdCount - 1;
             bool isWhite = false;
 
-            size_t pixelIndexX{ indices.first };
-            size_t pixelIndexY{ indices.second };
+            size_t pixelIndexX{ indices.x };
+            size_t pixelIndexY{ indices.y };
             
             switch(threshold) {
             case 6:
@@ -103,23 +122,34 @@ namespace Effect {
         }
         
         ImageCPU doSimpleImageEffect(EffectType::Type type, const ImageCPU& originalImage) {
-            ImageGPU<3, byte> gpuImage{ originalImage };
+            ImageGPU<3, byte> gpuImage{ ImageGPU<3, byte>::copyFromCPU(originalImage) };
 
             constexpr int BLOCK_WIDTH{ 16 };
             dim3 blockDim = dim3(BLOCK_WIDTH, BLOCK_WIDTH);
             dim3 blockCount = dim3((gpuImage.getWidth() + BLOCK_WIDTH - 1) / BLOCK_WIDTH, (gpuImage.getHeight() + BLOCK_WIDTH - 1) / BLOCK_WIDTH);
 
-            if (type == EffectType::invert)
+            if (type == EffectType::invert) {
                 KERNALInvertImage<<<blockCount, blockDim>>>(gpuImage);
-            if (type == EffectType::stipple)
+            }
+            if (type == EffectType::stipple) {
                 KERNALStippleImage<<<blockCount, blockDim>>>(gpuImage);
+            }
+            if (type == EffectType::coords) {
+                KERNALUVImage<<<blockCount, blockDim>>>(gpuImage);
+            }
             ImageCPU alteredImage{ gpuImage };
             
             return alteredImage;
         }
     }
 
-    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage) {
+    ImageCPU doEffect(EffectType::Type type, const ImageCPU& originalImage, float minContrast, float maxContrast) {
+        if (type == EffectType::sort_vert || type == EffectType::contrast) {
+            return Sort::sortImage(originalImage, Sort::Direction::vertical, minContrast, maxContrast, type);
+        }
+        else if (type == EffectType::sort_hor) {
+            return Sort::sortImage(originalImage, Sort::Direction::horizontal, minContrast, maxContrast, type);
+        }
         return doSimpleImageEffect(type, originalImage);
     }
 }
