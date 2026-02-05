@@ -1,9 +1,5 @@
 #include "../include/effect.cuh"
 #include "../include/effecttype.h"
-#include <stdio.h>
-#include <string>
-#include <string_view>
-#include <array>
 #include "../include/imagegpu.cuh"
 #include "../include/sort.cuh"
 #include "../include/indices.cuh"
